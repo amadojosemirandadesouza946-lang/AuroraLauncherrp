@@ -1,4 +1,4 @@
-name: Build APK
+name: Build AuroraLauncherrp APK
 
 on:
   push:
@@ -10,45 +10,48 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      KEYSTORE_FILENAME: aurora-release.keystore
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up JDK 17
+      - name: Set up JDK
         uses: actions/setup-java@v3
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
 
-      - name: Cache Gradle
-        uses: actions/cache@v3
+      - name: Set up Gradle
+        uses: gradle/gradle-build-action@v2
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+          gradle-version: 9.2.0
 
-      - name: Grant execute permission for Gradlew
-        run: chmod +x ./gradlew
-
-      - name: Decode Keystore
+      - name: Prepare keystore
         run: |
-          echo "$KEYSTORE_BASE64" | base64 --decode > aurora-release.keystore
+          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Keystore base64 secret is empty!"
+            exit 1
+          fi
           mkdir -p app/keystore
-          mv aurora-release.keystore app/keystore/aurora-release.keystore
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/keystore/$KEYSTORE_FILENAME
 
-      - name: Build Release APK
-        run: ./gradlew clean assembleRelease \
-          -Pandroid.injected.signing.store.file=app/keystore/aurora-release.keystore \
-          -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
-          -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
-          -Pandroid.injected.signing.key.password=$KEY_PASSWORD
+      - name: Build APK
+        run: |
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=app/keystore/$KEYSTORE_FILENAME \
+            -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
+            -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
+            -Pandroid.injected.signing.key.password=$KEY_PASSWORD
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AuroraLauncher-APK
+          name: AuroraLauncherrp-release
           path: app/build/outputs/apk/release/app-release.apk
+
 
